@@ -1,18 +1,19 @@
+
 _author = 'ali.mazouchi'
 
-import redis
+
 import json
+import redis
 
-
+from settings import settings
 
 class MemCache(object):
 	"""
 		Memory Cache for web applicationm, wrapper for redis
 	"""
-
-	__host = 'localhost'
-	__port = 6379
-	__JSON_OBJECT = '[-OBJ-]'
+	__host = settings('redis__host')
+	__port = settings('redis__port')
+	__JSON_OBJECT = '[-OBJ-]'	# indicator for json object format
 
 	def __init__(self, settings=None):
 		self._host = None
@@ -31,6 +32,9 @@ class MemCache(object):
 
 	@classmethod
 	def json2objstring(cls, json_obj):
+		'''
+			converting json object to a string with prefix [-OBJ-]
+		'''
 		rs = json_obj
 		if isinstance(json_obj, (dict, list)):
 			rs = cls.__JSON_OBJECT + json.dumps(json_obj)
@@ -38,6 +42,10 @@ class MemCache(object):
 
 	@classmethod
 	def objstring2json(cls, objstring):
+		'''
+			converting object string with prefix [-OBJ-] to json object
+			if input is not a velid object string returns original input
+		'''
 		rs = objstring
 		len_flag = len(cls.__JSON_OBJECT)
 		if objstring and objstring[0:len_flag] == cls.__JSON_OBJECT:
@@ -45,6 +53,11 @@ class MemCache(object):
 		return rs
 
 	def set(self, key, value, namespace=None, ttl=None):
+		'''
+			set key-value into memory cache
+			namespace: same as hash name, if namespace presents key-value is added to namespace
+			ttl: time to expire
+		'''
 		rs = None
 		value = self.json2objstring(value)
 		if namespace:
@@ -75,13 +88,15 @@ class MemCache(object):
 		return rs	
 
 	@classmethod
-	def process(cls, obj):
+	def process(cls, obj, prefix='API:'):
 		'''
 			processing obj (json) passed through apis, keys may be required:
 			namespace: namespace for inquirey or setting value
 			key: name of the key for inquirey or setting value
 			value: for value of the key to be set, value can be string or dictionary ot array 
 			in case of error, key 'err' exists in response
+
+			prefix by default 'API:' is added to all namesapces or top level keys
 		'''
 		rs = {}
 		try:
@@ -89,6 +104,10 @@ class MemCache(object):
 			value = obj.get('value')
 			namespace = obj.get('namespace')
 			ttl = obj.get('ttl', 60*60)
+			if namespace:
+				namespace = prefix + namespace
+			elif key:
+				key = prefix + key
 			if key:
 				mc = MemCache()
 				if value:
@@ -102,33 +121,20 @@ class MemCache(object):
 
 
 if __name__ == "__main__":
-	obj = {'key': 'ali', 'value': 5}
-	rs = MemCache.process(obj)
-	print 'obj:%s  rs:%s' % (obj, rs)
 
-	obj = {'key': 'ali2', 'value': {'a':1, 'b':2}}
-	rs = MemCache.process(obj)
-	print 'obj:%s  rs:%s' % (obj, rs)
+	test_list = [
+		{'key': 'ali', 'value': 5},
+		{'key': 'ali2', 'value': {'a':1, 'b':2}},
+		{'key': 'ali'},
+		{'namespace': 'test', 'key': 'ali3', 'value': {'a':1, 'b':3}},
+		{'namespace': 'test', 'key': 'ali3'},
+		{'namespace': 'test', 'key': 'ali4', 'value': {'a':4, 'b':5}},
+		{'namespace': 'test'}
+	]
 
-	obj = {'key': 'ali'}
-	rs = MemCache.process(obj)
-	print 'obj:%s  rs:%s' % (obj, rs)
-
-	obj = {'namespace': 'test', 'key': 'ali3', 'value': {'a':1, 'b':3}}		# TODO: fix bug with response if key already set
-	rs = MemCache.process(obj)
-	print 'obj:%s  rs:%s' % (obj, rs)
-
-	obj = {'namespace': 'test', 'key': 'ali3'}
-	rs = MemCache.process(obj)
-	print 'obj:%s  rs:%s' % (obj, rs)
-
-	obj = {'namespace': 'test', 'key': 'ali4', 'value': {'a':4, 'b':5}}
-	rs = MemCache.process(obj)
-	print 'obj:%s  rs:%s' % (obj, rs)
-
-	obj = {'namespace': 'test'}
-	rs = MemCache.process(obj)
-	print 'obj:%s  rs:%s' % (obj, rs)
-
+	for obj in test_list:
+		print 'request obj:', obj
+		rs = MemCache.process(obj)
+		print 'results rs:%s \n\n' % (rs)
 
 
